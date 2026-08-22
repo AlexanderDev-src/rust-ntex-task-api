@@ -1,28 +1,22 @@
+mod task;
 use ntex::web;
+use task::{CreateTask, Task};
 
 #[ntex::main]
 
 async fn main() -> std::io::Result<()> {
-    web::HttpServer::new(async || {
-        web::App::new()
-            .service(hello)
-            .service(echo)
-            .route("/hey", web::get().to(manual_hello))
-    })
-    .bind(("127.0.0.1", 8080))?
-    .run()
-    .await
+    web::HttpServer::new(async || web::App::new().service(health).service(create_task))
+        .bind(("127.0.0.1", 8080))?
+        .run()
+        .await
 }
-#[web::get("/")]
-async fn hello() -> impl web::Responder {
-    web::HttpResponse::Ok().body("Hello world!")
+#[web::get("/health")]
+async fn health() -> impl web::Responder {
+    web::HttpResponse::Ok().body("OK")
 }
 
-#[web::post("/echo")]
-async fn echo(req_body: String) -> impl web::Responder {
-    web::HttpResponse::Ok().body(req_body)
-}
-
-async fn manual_hello() -> impl web::Responder {
-    web::HttpResponse::Ok().body("Hey there!")
+#[web::post("/tasks")]
+async fn create_task(body: web::types::Json<CreateTask>) -> web::HttpResponse {
+    let task = Task::new(body.into_inner());
+    web::HttpResponse::Created().json(&task)
 }
