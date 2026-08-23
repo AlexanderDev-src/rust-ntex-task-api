@@ -2,14 +2,14 @@ use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "snake_case")]
 enum TaskStatus {
     Todo,
     InProgress,
     Done,
 }
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 pub struct Task {
     id: Uuid,
     title: String,
@@ -29,10 +29,33 @@ impl Task {
             created_at: OffsetDateTime::now_utc(),
         }
     }
+
+    pub fn get_id(&self) -> Uuid {
+        self.id
+    }
+
+    pub fn apply(&mut self, update: UpdateTask) {
+        if let Some(v) = update.title {
+            self.title = v
+        }
+        if let Some(v) = update.description {
+            self.description = Some(v)
+        }
+        if let Some(v) = update.status {
+            self.status = v
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
 pub struct CreateTask {
     title: String,
     description: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateTask {
+    title: Option<String>,
+    description: Option<String>,
+    status: Option<TaskStatus>,
 }

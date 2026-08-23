@@ -1,22 +1,25 @@
-mod task;
 use ntex::web;
-use task::{CreateTask, Task};
+use restapi::{
+    handlers::tasks::{create_task, delete_task, get_task, health, list_tasks, update_task},
+    state::AppState,
+};
 
 #[ntex::main]
 
 async fn main() -> std::io::Result<()> {
-    web::HttpServer::new(async || web::App::new().service(health).service(create_task))
-        .bind(("127.0.0.1", 8080))?
-        .run()
-        .await
-}
-#[web::get("/health")]
-async fn health() -> impl web::Responder {
-    web::HttpResponse::Ok().body("OK")
-}
+    let state = AppState::new();
 
-#[web::post("/tasks")]
-async fn create_task(body: web::types::Json<CreateTask>) -> web::HttpResponse {
-    let task = Task::new(body.into_inner());
-    web::HttpResponse::Created().json(&task)
+    web::HttpServer::new(async move || {
+        web::App::new()
+            .state(state.clone())
+            .service(health)
+            .service(create_task)
+            .service(delete_task)
+            .service(list_tasks)
+            .service(get_task)
+            .service(update_task)
+    })
+    .bind(("127.0.0.1", 8080))?
+    .run()
+    .await
 }
