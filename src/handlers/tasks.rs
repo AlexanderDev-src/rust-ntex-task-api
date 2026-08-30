@@ -2,6 +2,7 @@ use ntex::web;
 use uuid::Uuid;
 
 use crate::{
+    handlers::error::AppError,
     models::task::{CreateTask, Task, UpdateTask},
     state::AppState,
 };
@@ -15,28 +16,25 @@ async fn health() -> impl web::Responder {
 async fn create_task(
     state: web::types::State<AppState>,
     body: web::types::Json<CreateTask>,
-) -> web::HttpResponse {
+) -> Result<web::HttpResponse, AppError> {
     let task = Task::new(body.into_inner());
     state.insert(task.clone());
-    web::HttpResponse::Created().json(&task)
+    Ok(web::HttpResponse::Created().json(&task))
 }
 
 #[web::get("/tasks/{id}")]
 async fn get_task(
     state: web::types::State<AppState>,
     path: web::types::Path<Uuid>,
-) -> web::HttpResponse {
+) -> Result<web::HttpResponse, AppError> {
     let id = path.into_inner();
-
-    match state.get(id) {
-        Some(task) => web::HttpResponse::Ok().json(&task),
-        None => web::HttpResponse::NotFound().finish(),
-    }
+    let task = state.get(id).ok_or(AppError::NotFound)?;
+    Ok(web::HttpResponse::Ok().json(&task))
 }
 #[web::get("/tasks")]
-async fn list_tasks(state: web::types::State<AppState>) -> web::HttpResponse {
+async fn list_tasks(state: web::types::State<AppState>) -> Result<web::HttpResponse, AppError> {
     let tasks = state.list();
-    web::HttpResponse::Ok().json(&tasks)
+    Ok(web::HttpResponse::Ok().json(&tasks))
 }
 
 #[web::patch("/tasks/{id}")]
@@ -45,25 +43,19 @@ async fn update_task(
     state: web::types::State<AppState>,
     path: web::types::Path<Uuid>,
     body: web::types::Json<UpdateTask>,
-) -> web::HttpResponse {
-    let id = path.into_inner();
-
-    match state.update(id, body.into_inner()) {
-        Some(task) => web::HttpResponse::Ok().json(&task),
-        None => web::HttpResponse::NotFound().finish(),
-    }
+) -> Result<web::HttpResponse, AppError> {
+    let task = state
+        .update(path.into_inner(), body.into_inner())
+        .ok_or(AppError::NotFound)?;
+    Ok(web::HttpResponse::Ok().json(&task))
 }
 
 #[web::delete("/tasks/{id}")]
 async fn delete_task(
     state: web::types::State<AppState>,
     path: web::types::Path<Uuid>,
-) -> web::HttpResponse {
+) -> Result<web::HttpResponse, AppError> {
     let id = path.into_inner();
-
-    if state.remove(id) {
-        web::HttpResponse::NoContent().finish()
-    } else {
-        web::HttpResponse::NotFound().finish()
-    }
+    state.remove(id).ok_or(AppError::NotFound)?;
+    Ok(web::HttpResponse::NoContent().finish())
 }
