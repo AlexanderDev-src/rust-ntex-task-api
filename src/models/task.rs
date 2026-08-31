@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use uuid::Uuid;
+use validator::Validate;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "snake_case")]
@@ -47,14 +48,16 @@ impl Task {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct CreateTask {
+    #[validate(length(min = 1, max = 200, message = "title must be 1-200 chars"))]
     title: String,
     description: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct UpdateTask {
+    #[validate(length(min = 1, max = 200, message = "title must be 1-200 chars"))]
     title: Option<String>,
     description: Option<String>,
     status: Option<TaskStatus>,

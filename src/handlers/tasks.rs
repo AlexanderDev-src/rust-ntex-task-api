@@ -2,7 +2,8 @@ use ntex::web;
 use uuid::Uuid;
 
 use crate::{
-    handlers::error::AppError,
+    error::AppError,
+    extract::ValidatedJson,
     models::task::{CreateTask, Task, UpdateTask},
     state::AppState,
 };
@@ -15,9 +16,9 @@ async fn health() -> impl web::Responder {
 #[web::post("/tasks")]
 async fn create_task(
     state: web::types::State<AppState>,
-    body: web::types::Json<CreateTask>,
+    ValidatedJson(input): ValidatedJson<CreateTask>,
 ) -> Result<web::HttpResponse, AppError> {
-    let task = Task::new(body.into_inner());
+    let task = Task::new(input);
     state.insert(task.clone());
     Ok(web::HttpResponse::Created().json(&task))
 }
@@ -42,10 +43,10 @@ async fn list_tasks(state: web::types::State<AppState>) -> Result<web::HttpRespo
 async fn update_task(
     state: web::types::State<AppState>,
     path: web::types::Path<Uuid>,
-    body: web::types::Json<UpdateTask>,
+    ValidatedJson(input): ValidatedJson<UpdateTask>,
 ) -> Result<web::HttpResponse, AppError> {
     let task = state
-        .update(path.into_inner(), body.into_inner())
+        .update(path.into_inner(), input)
         .ok_or(AppError::NotFound)?;
     Ok(web::HttpResponse::Ok().json(&task))
 }

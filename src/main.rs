@@ -1,9 +1,7 @@
 use ntex::web;
 use restapi::{
-    handlers::{
-        error::AppError,
-        tasks::{create_task, delete_task, get_task, health, list_tasks, update_task},
-    },
+    error::AppError,
+    handlers::tasks::{create_task, delete_task, get_task, health, list_tasks, update_task},
     state::AppState,
 };
 
