@@ -76,8 +76,8 @@ Reading `docs.rs` type signatures and the ntex source directly ended up being fa
 ## Running it
 
 ```bash
-git clone git@github.com:AlexanderDev-src/rust-axum-task-api.git
-cd rust-axum-task-api
+git clone git@github.com:AlexanderDev-src/rust-ntex-task-api.git
+cd rust-ntex-task-api
 echo 'DATABASE_URL=sqlite://tasks.db?mode=rwc' > .env
 cargo run
 ```
