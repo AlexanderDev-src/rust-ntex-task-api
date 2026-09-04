@@ -16,6 +16,8 @@ pub enum AppError {
     Validation(String),
     #[error("error occurred. Please try again")]
     Internal,
+    #[error("database error")]
+    Database(#[from] sqlx::Error),
 }
 
 #[derive(Serialize)]
@@ -31,6 +33,8 @@ impl WebResponseError for AppError {
             AppError::BadRequest(_) => StatusCode::BAD_REQUEST,
             AppError::Validation(_) => StatusCode::UNPROCESSABLE_ENTITY,
             AppError::Internal => StatusCode::INTERNAL_SERVER_ERROR,
+            AppError::Database(sqlx::Error::RowNotFound) => StatusCode::NOT_FOUND,
+            AppError::Database(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
     fn error_response(&self, _: &HttpRequest) -> web::HttpResponse {
@@ -39,6 +43,8 @@ impl WebResponseError for AppError {
             AppError::BadRequest(_) => "bad_request",
             AppError::Validation(_) => "required",
             AppError::Internal => "server_error",
+            AppError::Database(sqlx::Error::RowNotFound) => "not_found",
+            AppError::Database(_) => "internal_server_error",
         };
         web::HttpResponse::build(self.status_code()).json(&ErrorBody {
             error: code,

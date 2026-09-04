@@ -4,11 +4,19 @@ use restapi::{
     handlers::tasks::{create_task, delete_task, get_task, health, list_tasks, update_task},
     state::AppState,
 };
+use sqlx::sqlite::SqlitePoolOptions;
 
 #[ntex::main]
 
-async fn main() -> std::io::Result<()> {
-    let state = AppState::new();
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    dotenvy::dotenv().expect(".env file not found");
+    let url = std::env::var("DATABASE_URL").expect("DATABASE_URL not set");
+    let pool = SqlitePoolOptions::new()
+        .max_connections(5)
+        .connect(&url)
+        .await?;
+    sqlx::migrate!("./migrations").run(&pool).await?;
+    let state = AppState::new(pool);
 
     web::HttpServer::new(async move || {
         web::App::new()
@@ -23,7 +31,9 @@ async fn main() -> std::io::Result<()> {
     })
     .bind(("127.0.0.1", 8080))?
     .run()
-    .await
+    .await?;
+
+    Ok(())
 }
 
 async fn not_found() -> Result<web::HttpResponse, AppError> {

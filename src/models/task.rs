@@ -3,21 +3,25 @@ use time::OffsetDateTime;
 use uuid::Uuid;
 use validator::Validate;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, sqlx::Type)]
 #[serde(rename_all = "snake_case")]
-enum TaskStatus {
+#[sqlx(type_name = "task_status", rename_all = "snake_case")]
+pub enum TaskStatus {
     Todo,
     InProgress,
     Done,
 }
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Clone, sqlx::FromRow, Validate)]
 pub struct Task {
-    id: Uuid,
-    title: String,
-    description: Option<String>,
-    status: TaskStatus,
+    #[sqlx(try_from = "String")]
+    pub(crate) id: Uuid,
+    #[validate(length(min = 1, max = 100))]
+    pub(crate) title: String,
+    #[validate(length(min = 1, max = 100))]
+    pub(crate) description: Option<String>,
+    pub(crate) status: TaskStatus,
     #[serde(with = "time::serde::rfc3339")]
-    created_at: OffsetDateTime,
+    pub(crate) created_at: OffsetDateTime,
 }
 
 impl Task {
@@ -58,7 +62,7 @@ pub struct CreateTask {
 #[derive(Debug, Deserialize, Validate)]
 pub struct UpdateTask {
     #[validate(length(min = 1, max = 200, message = "title must be 1-200 chars"))]
-    title: Option<String>,
-    description: Option<String>,
-    status: Option<TaskStatus>,
+    pub(crate) title: Option<String>,
+    pub(crate) description: Option<String>,
+    pub(crate) status: Option<TaskStatus>,
 }

@@ -1545,6 +1545,7 @@ checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
 name = "restapi"
 version = "0.1.0"
 dependencies = [
+ "dotenvy",
  "ntex",
  "serde",
  "serde_json",
@@ -1815,10 +1816,12 @@ dependencies = [
  "sha2 0.10.9",
  "smallvec",
  "thiserror",
+ "time",
  "tokio",
  "tokio-stream",
  "tracing",
  "url",
+ "uuid",
 ]
 
 [[package]]
@@ -1883,7 +1886,9 @@ dependencies = [
  "sha2 0.11.0",
  "sqlx-core",
  "thiserror",
+ "time",
  "tracing",
+ "uuid",
 ]
 
 [[package]]
@@ -1917,7 +1922,9 @@ dependencies = [
  "sqlx-core",
  "stringprep",
  "thiserror",
+ "time",
  "tracing",
+ "uuid",
  "whoami",
 ]
 
@@ -1941,8 +1948,10 @@ dependencies = [
  "serde",
  "sqlx-core",
  "thiserror",
+ "time",
  "tracing",
  "url",
+ "uuid",
 ]
 
 [[package]]

@@ -1,46 +1,84 @@
-use std::{
-    collections::HashMap,
-    sync::{Arc, Mutex},
-};
-
+use sqlx::SqlitePool;
 use uuid::Uuid;
 
 use crate::models::task::{Task, UpdateTask};
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct AppState {
-    tasks: Arc<Mutex<HashMap<Uuid, Task>>>,
+    pool: SqlitePool,
 }
 
 impl AppState {
-    pub fn new() -> Self {
-        Self {
-            tasks: Arc::new(Mutex::new(HashMap::new())),
+    pub fn new(db: SqlitePool) -> Self {
+        Self { pool: db }
+    }
+
+    pub async fn insert(&self, task: Task) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            "Insert into tasks (id, title, description, status, created_at) VALUES (?, ?, ?, ?, ?)",
+        )
+        .bind(task.get_id().to_string())
+        .bind(&task.title)
+        .bind(&task.description)
+        .bind(&task.status)
+        .bind(task.created_at)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    pub async fn get(&self, id: Uuid) -> Result<Option<Task>, sqlx::Error> {
+        sqlx::query_as("SELECT * FROM tasks where id = ?")
+            .bind(id.to_string())
+            .fetch_optional(&self.pool)
+            .await
+    }
+
+    pub async fn list(&self) -> Result<Vec<Task>, sqlx::Error> {
+        let tasks = sqlx::query_as("SELECT * FROM tasks")
+            .fetch_all(&self.pool)
+            .await?;
+        Ok(tasks)
+    }
+
+    pub async fn update(&self, id: Uuid, task: UpdateTask) -> Result<Option<Task>, sqlx::Error> {
+        let existing = sqlx::query_as::<_, Task>("SELECT * FROM tasks WHERE id = ?")
+            .bind(id.to_string())
+            .fetch_optional(&self.pool)
+            .await?;
+
+        let Some(mut current) = existing else {
+            return Ok(None);
+        };
+
+        if let Some(title) = task.title {
+            current.title = title;
         }
-    }
+        current.description = task.description.or(current.description);
+        if let Some(status) = task.status {
+            current.status = status;
+        }
 
-    pub fn insert(&self, task: Task) {
-        let mut map = self.tasks.lock().unwrap();
-        map.insert(task.get_id(), task);
-    }
+        sqlx::query(
+            "UPDATE tasks
+         SET title = ?, description = ?, status = ?
+         WHERE id = ?",
+        )
+        .bind(&current.title)
+        .bind(&current.description)
+        .bind(&current.status)
+        .bind(id.to_string())
+        .execute(&self.pool)
+        .await?;
 
-    pub fn list(&self) -> Vec<Task> {
-        let map = self.tasks.lock().unwrap();
-        map.values().cloned().collect()
+        Ok(Some(current))
     }
-
-    pub fn get(&self, id: Uuid) -> Option<Task> {
-        self.tasks.lock().unwrap().get(&id).cloned()
-    }
-
-    pub fn update(&self, id: Uuid, update: UpdateTask) -> Option<Task> {
-        let mut map = self.tasks.lock().unwrap();
-        let task = map.get_mut(&id)?;
-        task.apply(update);
-        Some(task.clone())
-    }
-
-    pub fn remove(&self, id: Uuid) -> bool {
-        self.tasks.lock().unwrap().remove(&id).is_some()
+    pub async fn remove(&self, id: Uuid) -> Result<bool, sqlx::Error> {
+        let r = sqlx::query("DELETE FROM tasks WHERE id = ?")
+            .bind(id.to_string())
+            .execute(&self.pool)
+            .await?;
+        Ok(r.rows_affected() > 0)
     }
 }

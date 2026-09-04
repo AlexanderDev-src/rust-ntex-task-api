@@ -19,7 +19,7 @@ async fn create_task(
     ValidatedJson(input): ValidatedJson<CreateTask>,
 ) -> Result<web::HttpResponse, AppError> {
     let task = Task::new(input);
-    state.insert(task.clone());
+    state.insert(task.clone()).await?;
     Ok(web::HttpResponse::Created().json(&task))
 }
 
@@ -29,12 +29,12 @@ async fn get_task(
     path: web::types::Path<Uuid>,
 ) -> Result<web::HttpResponse, AppError> {
     let id = path.into_inner();
-    let task = state.get(id).ok_or(AppError::NotFound)?;
+    let task = state.get(id).await?.ok_or(AppError::NotFound)?;
     Ok(web::HttpResponse::Ok().json(&task))
 }
 #[web::get("/tasks")]
 async fn list_tasks(state: web::types::State<AppState>) -> Result<web::HttpResponse, AppError> {
-    let tasks = state.list();
+    let tasks = state.list().await?;
     Ok(web::HttpResponse::Ok().json(&tasks))
 }
 
@@ -47,6 +47,7 @@ async fn update_task(
 ) -> Result<web::HttpResponse, AppError> {
     let task = state
         .update(path.into_inner(), input)
+        .await?
         .ok_or(AppError::NotFound)?;
     Ok(web::HttpResponse::Ok().json(&task))
 }
@@ -57,6 +58,6 @@ async fn delete_task(
     path: web::types::Path<Uuid>,
 ) -> Result<web::HttpResponse, AppError> {
     let id = path.into_inner();
-    state.remove(id).ok_or(AppError::NotFound)?;
+    state.remove(id).await?.ok_or(AppError::NotFound)?;
     Ok(web::HttpResponse::NoContent().finish())
 }
