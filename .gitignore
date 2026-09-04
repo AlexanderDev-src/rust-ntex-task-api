@@ -5,3 +5,5 @@
 *.db-wal
 test.fish
 .gitignore
+node_modules
+frontend/dist
