@@ -1,7 +1,7 @@
-use sqlx::SqlitePool;
+use sqlx::{QueryBuilder, Sqlite, SqlitePool};
 use uuid::Uuid;
 
-use crate::models::task::{Task, UpdateTask};
+use crate::models::task::{Task, TaskQuery, UpdateTask};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -17,7 +17,7 @@ impl AppState {
         sqlx::query(
             "Insert into tasks (id, title, description, status, created_at) VALUES (?, ?, ?, ?, ?)",
         )
-        .bind(task.get_id().to_string())
+        .bind(task.id().to_string())
         .bind(&task.title)
         .bind(&task.description)
         .bind(&task.status)
@@ -35,10 +35,21 @@ impl AppState {
             .await
     }
 
-    pub async fn list(&self) -> Result<Vec<Task>, sqlx::Error> {
-        let tasks = sqlx::query_as("SELECT * FROM tasks")
-            .fetch_all(&self.pool)
-            .await?;
+    pub async fn list(&self, query: &TaskQuery) -> Result<Vec<Task>, sqlx::Error> {
+        let limit = query.limit.min(100);
+        let mut b: QueryBuilder<Sqlite> = QueryBuilder::new("SELECT * FROM tasks");
+
+        if let Some(s) = &query.status {
+            b.push(" WHERE status = ").push_bind(s.clone());
+        }
+
+        b.push(" ORDER BY created_at DESC LIMIT ")
+            .push_bind(limit)
+            .push(" OFFSET ")
+            .push_bind(query.offset);
+
+        let tasks = b.build_query_as::<Task>().fetch_all(&self.pool).await?;
+
         Ok(tasks)
     }
 

@@ -15,9 +15,9 @@ pub enum TaskStatus {
 pub struct Task {
     #[sqlx(try_from = "String")]
     pub(crate) id: Uuid,
-    #[validate(length(min = 1, max = 100))]
+    #[validate(length(min = 1, max = 200))]
     pub(crate) title: String,
-    #[validate(length(min = 1, max = 100))]
+    #[validate(length(min = 1, max = 200))]
     pub(crate) description: Option<String>,
     pub(crate) status: TaskStatus,
     #[serde(with = "time::serde::rfc3339")]
@@ -35,20 +35,8 @@ impl Task {
         }
     }
 
-    pub fn get_id(&self) -> Uuid {
+    pub fn id(&self) -> Uuid {
         self.id
-    }
-
-    pub fn apply(&mut self, update: UpdateTask) {
-        if let Some(v) = update.title {
-            self.title = v
-        }
-        if let Some(v) = update.description {
-            self.description = Some(v)
-        }
-        if let Some(v) = update.status {
-            self.status = v
-        }
     }
 }
 
@@ -65,4 +53,18 @@ pub struct UpdateTask {
     pub(crate) title: Option<String>,
     pub(crate) description: Option<String>,
     pub(crate) status: Option<TaskStatus>,
+}
+
+fn default_limit() -> u32 {
+    20
+}
+
+#[derive(Debug, Deserialize, Validate)]
+pub struct TaskQuery {
+    pub status: Option<TaskStatus>,
+    #[serde(default = "default_limit")]
+    #[validate(range(min = 1, max = 100, message = "limit must be 1-100"))]
+    pub limit: u32,
+    #[serde(default)]
+    pub offset: u32,
 }

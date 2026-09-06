@@ -3,8 +3,8 @@ use uuid::Uuid;
 
 use crate::{
     error::AppError,
-    extract::ValidatedJson,
-    models::task::{CreateTask, Task, UpdateTask},
+    extract::{ValidatedJson, ValidatedQuery},
+    models::task::{CreateTask, Task, TaskQuery, UpdateTask},
     state::AppState,
 };
 
@@ -12,7 +12,6 @@ use crate::{
 async fn health() -> impl web::Responder {
     web::HttpResponse::Ok().body("OK")
 }
-
 #[web::post("/tasks")]
 async fn create_task(
     state: web::types::State<AppState>,
@@ -33,8 +32,11 @@ async fn get_task(
     Ok(web::HttpResponse::Ok().json(&task))
 }
 #[web::get("/tasks")]
-async fn list_tasks(state: web::types::State<AppState>) -> Result<web::HttpResponse, AppError> {
-    let tasks = state.list().await?;
+async fn list_tasks(
+    state: web::types::State<AppState>,
+    ValidatedQuery(q): ValidatedQuery<TaskQuery>,
+) -> Result<web::HttpResponse, AppError> {
+    let tasks = state.list(&q).await?;
     Ok(web::HttpResponse::Ok().json(&tasks))
 }
 

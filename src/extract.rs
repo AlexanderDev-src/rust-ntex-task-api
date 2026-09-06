@@ -28,3 +28,28 @@ where
         Ok(ValidatedJson(value))
     }
 }
+
+pub struct ValidatedQuery<T>(pub T);
+
+impl<T, Err> FromRequest<Err> for ValidatedQuery<T>
+where
+    T: DeserializeOwned + Validate + 'static,
+    Err: ErrorRenderer,
+{
+    type Error = AppError;
+
+    async fn from_request(
+        req: &web::HttpRequest,
+        payload: &mut ntex::http::Payload,
+    ) -> Result<Self, Self::Error> {
+        let query = <web::types::Query<T> as FromRequest<Err>>::from_request(req, payload)
+            .await
+            .map_err(|e| AppError::BadRequest(e.to_string()))?;
+        let value = query.into_inner();
+        value
+            .validate()
+            .map_err(|e| AppError::Validation(e.to_string()))?;
+
+        Ok(ValidatedQuery(value))
+    }
+}
