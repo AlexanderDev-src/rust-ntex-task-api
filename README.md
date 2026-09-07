@@ -27,14 +27,23 @@ never fired.
 
 ## What it does
 
-| Method | Path          | Behaviour                                          |
-| ------ | ------------- | -------------------------------------------------- |
-| GET    | `/health`     | liveness check                                      |
-| GET    | `/tasks`      | list all tasks                                      |
-| POST   | `/tasks`      | create a task — validated, returns `201` + the task |
-| GET    | `/tasks/{id}` | fetch one task, `404` if it does not exist          |
-| PATCH  | `/tasks/{id}` | partial update — only the fields you send           |
-| DELETE | `/tasks/{id}` | delete, `204` on success                            |
+| Method | Path          | Behaviour                                                       |
+| ------ | ------------- | --------------------------------------------------------------- |
+| GET    | `/health`     | liveness check                                                   |
+| GET    | `/tasks`      | list tasks — newest first, with `status`, `limit`, `offset`       |
+| POST   | `/tasks`      | create a task — validated, returns `201` + the task              |
+| GET    | `/tasks/{id}` | fetch one task, `404` if it does not exist                       |
+| PATCH  | `/tasks/{id}` | partial update — only the fields you send                        |
+| DELETE | `/tasks/{id}` | delete, `204` on success                                         |
+
+Listing supports filtering and paging:
+
+```
+GET /tasks?status=done&limit=20&offset=40
+```
+
+`limit` defaults to 20 and must be between 1 and 100. Results are ordered by `created_at`
+descending — without a fixed order, paging silently duplicates and skips rows.
 
 Every error comes back in the same JSON shape, including unknown routes:
 
@@ -78,12 +87,30 @@ Reading `docs.rs` type signatures and the ntex source directly ended up being fa
 ```bash
 git clone git@github.com:AlexanderDev-src/rust-ntex-task-api.git
 cd rust-ntex-task-api
-echo 'DATABASE_URL=sqlite://tasks.db?mode=rwc' > .env
+printf '%s\n' 'DATABASE_URL=sqlite://tasks.db?mode=rwc' 'PORT=8080' > .env
 cargo run
 ```
 
-The server listens on `http://localhost:8080`. Migrations run automatically at startup, and the
-SQLite file is created on first run.
+Migrations run automatically at startup and the SQLite file is created on first run.
+
+Configuration comes from the environment; `.env` is only a convenience for local work, and real
+environment variables take precedence over it:
+
+| Variable       | Required | Default | Notes                        |
+| -------------- | -------- | ------- | ---------------------------- |
+| `DATABASE_URL` | yes      | —       | startup fails without it     |
+| `PORT`         | no       | 8080    |                              |
+| `WORKERS`      | no       | 4       | ntex worker threads          |
+
+A missing or malformed value fails fast with one readable line, not a panic:
+
+```
+Error: DATABASE_URL is not set
+Error: PORT must be a number, got "abc"
+```
+
+`PORT=4000 cargo run` overrides the file. Ctrl-C shuts down gracefully, giving in-flight requests up
+to five seconds to finish.
 
 ```bash
 curl -X POST localhost:8080/tasks \
@@ -93,15 +120,21 @@ curl -X POST localhost:8080/tasks \
 
 ## Tests
 
-`test.fish` is an acceptance script that exercises every endpoint plus the error and validation
-paths. Start the server first, then in another terminal:
+`test.fish` is an acceptance script — 48 checks covering every endpoint, every error path, the
+validation rules, and the paging behaviour. Start the server first, then in another terminal:
 
 ```bash
-./test.fish
+./test.fish          # or ./test.fish 4000 for a different port
 ```
 
-It creates its own tasks and cleans them up, so it is safe to run repeatedly. It exits non-zero if
+It seeds its own tasks and deletes them afterwards, so it is safe to run repeatedly, and every count
+it asserts is relative to what it created — leftover rows do not break it. It exits non-zero if
 anything fails.
+
+Two of those checks are less obvious than the rest and were worth writing: one asserts that page 1
+and page 2 share no ids, and one asserts that the same request twice returns the same order. Both
+fail the moment `ORDER BY` goes missing, which is exactly the bug that is invisible when you only
+ever look at one page.
 
 ## Layout
 
@@ -109,12 +142,14 @@ anything fails.
 src/
 ├── main.rs            startup: config, pool, migrations, routes
 ├── lib.rs             module declarations
+├── config.rs          Config::from_env — the only place that reads the environment
 ├── error.rs           AppError + WebResponseError — every error becomes JSON here
-├── extract.rs         ValidatedJson<T>, a custom FromRequest extractor
+├── extract.rs         ValidatedJson<T> and ValidatedQuery<T>, custom FromRequest extractors
 ├── state.rs           AppState — owns the SqlitePool, all SQL lives here
 ├── handlers/tasks.rs  HTTP only: request in, AppState call, response out
-└── models/task.rs     Task, CreateTask, UpdateTask, TaskStatus
+└── models/task.rs     Task, CreateTask, UpdateTask, TaskQuery, TaskStatus
 migrations/            versioned schema, applied on startup
+frontend/              React + TypeScript + Tailwind (in progress)
 ```
 
 Dependencies point one way: `handlers` → `state` → `models`. Handlers contain no SQL, and models know
@@ -137,13 +172,17 @@ Each phase was one commit and taught one thing.
 | 4     | error handling            | `Result`, `?`, one error enum, `WebResponseError`              |
 | 5     | validation                | writing `FromRequest` by hand — how extractors actually work   |
 | 6     | SQLite with sqlx          | pools, migrations, async database calls, type mapping          |
-| 7     | query params, pagination  | planned                                                        |
-| 8     | config, graceful shutdown | planned                                                        |
+| 7     | query params, pagination  | `Query<T>`, `QueryBuilder`, why paging needs `ORDER BY`         |
+| 8     | config, graceful shutdown | env-driven config, splitting `main` from `run`, clean shutdown  |
 
 Deliberately out of scope: authentication, a test suite in Rust, Docker, tracing, OpenAPI. They are
 worth doing, but each is its own topic and would have blurred the phase it landed in.
 
 ## Status
 
-Phases 0–6 are done and the acceptance script passes. This is learning code: it has no auth, no rate
-limiting, no Rust-level tests, and it is not hardened for anything. Do not run it in production.
+All eight phases are done and the 48-check acceptance script passes. Next up, one topic at a time:
+finishing the React frontend, then migrating from SQLite to PostgreSQL, then Docker — deferred until
+PostgreSQL makes `docker compose` actually worth having.
+
+This is learning code. It has no auth, no rate limiting, and no Rust-level tests, and it is not
+hardened for anything. Do not run it in production.
