@@ -1,0 +1,52 @@
+# Frontend + database. The api service is commented out until the SQLite ->
+# PostgreSQL move lands, because it needs a backend Dockerfile and a bind
+# address change.
+#
+# Run what exists today:  docker compose up --build web
+services:
+  web:
+    build: ./frontend
+    ports:
+      - "5173:80"
+    restart: unless-stopped
+    # TODO: add `depends_on: [api]` when the api service is enabled.
+
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: restapi
+      POSTGRES_PASSWORD: restapi
+      POSTGRES_DB: tasks
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U restapi -d tasks"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # TODO: enable after the PostgreSQL migration.
+  #   1. Write a Dockerfile at the repo root (multi-stage: rust:1-slim build,
+  #      debian:bookworm-slim runtime, copy target/release/restapi).
+  #   2. src/main.rs binds ("127.0.0.1", config.port). Inside a container that
+  #      only listens on loopback, so `web` cannot reach it — read the host from
+  #      env (HOST, default "127.0.0.1") and set HOST=0.0.0.0 here.
+  #   3. Uncomment the /api/ location block in frontend/nginx.conf.
+  #
+  # api:
+  #   build: .
+  #   environment:
+  #     DATABASE_URL: postgres://restapi:restapi@db:5432/tasks
+  #     HOST: 0.0.0.0
+  #     PORT: 8080
+  #     WORKERS: 4
+  #   depends_on:
+  #     db:
+  #       condition: service_healthy
+  #   ports:
+  #     - "8080:8080"
+
+volumes:
+  pgdata:
