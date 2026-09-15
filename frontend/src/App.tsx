@@ -43,9 +43,7 @@ function App() {
 
   const query = { status: status ?? undefined, limit: PAGE_SIZE, offset };
 
-  /* The single read path. Everything else re-runs this after it mutates.
-     TODO: nothing to change here — swapping the body of listTasks() in
-     src/lib/api.ts is what puts this on the real backend. */
+  /* The single read path. Everything else re-runs this after it mutates. */
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -80,8 +78,6 @@ function App() {
     setFormError(null);
     try {
       const created = await createTask(input);
-      // TODO: the sample client invents the id. Once POST is real, this
-      // still works — the response body is the created Task.
       setTasks((current) => [created, ...current]);
       setDialogOpen(false);
     } catch (cause) {
@@ -210,9 +206,8 @@ function App() {
             >
               Prev
             </button>
-            {/* TODO: GET /tasks returns a bare array, so there is no total
-                to compare against. Disable Next when a page comes back short,
-                or add a count to the backend response later. */}
+            {/* GET /tasks returns a bare array with no total, so a short page is
+                the only end-of-list signal we get. */}
             <button
               type="button"
               disabled={tasks.length < PAGE_SIZE}
