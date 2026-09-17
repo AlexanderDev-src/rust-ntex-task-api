@@ -53,7 +53,10 @@ export function countByDay(tasks: Task[]): Record<string, number> {
 }
 
 export function formatMonth(month: Date): string {
-  return month.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  return month.toLocaleDateString(undefined, {
+    month: "long",
+    year: "numeric",
+  });
 }
 
 export function formatDayLong(date: Date): string {
