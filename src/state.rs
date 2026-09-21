@@ -1,23 +1,23 @@
-use sqlx::{QueryBuilder, Sqlite, SqlitePool};
+use sqlx::{PgPool, Postgres, QueryBuilder};
 use uuid::Uuid;
 
 use crate::models::task::{Task, TaskQuery, UpdateTask};
 
 #[derive(Clone)]
 pub struct AppState {
-    pool: SqlitePool,
+    pool: PgPool,
 }
 
 impl AppState {
-    pub fn new(db: SqlitePool) -> Self {
+    pub fn new(db: PgPool) -> Self {
         Self { pool: db }
     }
 
     pub async fn insert(&self, task: Task) -> Result<(), sqlx::Error> {
         sqlx::query(
-            "Insert into tasks (id, title, description, status, created_at) VALUES (?, ?, ?, ?, ?)",
+            "Insert into tasks (id, title, description, status, created_at) VALUES ($1, $2, $3, $4, $5)",
         )
-        .bind(task.id().to_string())
+        .bind(task.id())
         .bind(&task.title)
         .bind(&task.description)
         .bind(&task.status)
@@ -29,15 +29,15 @@ impl AppState {
     }
 
     pub async fn get(&self, id: Uuid) -> Result<Option<Task>, sqlx::Error> {
-        sqlx::query_as("SELECT * FROM tasks where id = ?")
-            .bind(id.to_string())
+        sqlx::query_as("SELECT * FROM tasks where id = $1")
+            .bind(id)
             .fetch_optional(&self.pool)
             .await
     }
 
     pub async fn list(&self, query: &TaskQuery) -> Result<Vec<Task>, sqlx::Error> {
         let limit = query.limit.min(100);
-        let mut b: QueryBuilder<Sqlite> = QueryBuilder::new("SELECT * FROM tasks");
+        let mut b: QueryBuilder<Postgres> = QueryBuilder::new("SELECT * FROM tasks");
 
         if let Some(s) = &query.status {
             b.push(" WHERE status = ").push_bind(s.clone());
@@ -54,8 +54,8 @@ impl AppState {
     }
 
     pub async fn update(&self, id: Uuid, task: UpdateTask) -> Result<Option<Task>, sqlx::Error> {
-        let existing = sqlx::query_as::<_, Task>("SELECT * FROM tasks WHERE id = ?")
-            .bind(id.to_string())
+        let existing = sqlx::query_as::<_, Task>("SELECT * FROM tasks WHERE id = $1")
+            .bind(id)
             .fetch_optional(&self.pool)
             .await?;
 
@@ -75,21 +75,21 @@ impl AppState {
 
         sqlx::query(
             "UPDATE tasks
-         SET title = ?, description = ?, status = ?
-         WHERE id = ?",
+         SET title = $1, description = $2, status = $3
+         WHERE id = $4",
         )
         .bind(&current.title)
         .bind(&current.description)
         .bind(&current.status)
-        .bind(id.to_string())
+        .bind(id)
         .execute(&self.pool)
         .await?;
 
         Ok(Some(current))
     }
     pub async fn remove(&self, id: Uuid) -> Result<bool, sqlx::Error> {
-        let r = sqlx::query("DELETE FROM tasks WHERE id = ?")
-            .bind(id.to_string())
+        let r = sqlx::query("DELETE FROM tasks WHERE id = $1")
+            .bind(id)
             .execute(&self.pool)
             .await?;
         Ok(r.rows_affected() > 0)

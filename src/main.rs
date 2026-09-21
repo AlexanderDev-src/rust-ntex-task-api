@@ -1,5 +1,3 @@
-use std::{str::FromStr, time::Duration};
-
 use ntex::{
     time::Seconds,
     web::{self},
@@ -10,7 +8,7 @@ use restapi::{
     handlers::tasks::{create_task, delete_task, get_task, health, list_tasks, update_task},
     state::AppState,
 };
-use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
+use sqlx::postgres::PgPoolOptions;
 
 #[ntex::main]
 
@@ -23,13 +21,9 @@ async fn main() {
 async fn run() -> Result<(), Box<dyn std::error::Error>> {
     dotenvy::dotenv().ok();
     let config = Config::from_env()?;
-    let opts = SqliteConnectOptions::from_str(&config.database_url)?
-        .journal_mode(SqliteJournalMode::Wal)
-        .busy_timeout(Duration::from_secs(5))
-        .foreign_keys(true);
-    let pool = SqlitePoolOptions::new()
+    let pool = PgPoolOptions::new()
         .max_connections(5)
-        .connect_with(opts)
+        .connect(&config.database_url)
         .await?;
     sqlx::migrate!("./migrations").run(&pool).await?;
     let state = AppState::new(pool);

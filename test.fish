@@ -208,7 +208,10 @@ end
 check "?unknown=x is ignored" 200 (code "$BASE/tasks?unknown=x")
 check "?status=bogus" 400 (code "$BASE/tasks?status=bogus")
 check "?limit=abc" 400 (code "$BASE/tasks?limit=abc")
-check "?limit=-1" 400 (code "$BASE/tasks?limit=-1")
+# PostgreSQL has no unsigned integers, so limit/offset are i64: -1 parses fine
+# and is then refused by the range rule — a validation failure, hence 422.
+check "?limit=-1" 422 (code "$BASE/tasks?limit=-1")
+check "?offset=-1" 422 (code "$BASE/tasks?offset=-1")
 
 echo
 echo "query validation — needs ValidatedQuery<T>"

@@ -5,7 +5,7 @@ use validator::Validate;
 
 #[derive(Debug, Serialize, Deserialize, Clone, sqlx::Type)]
 #[serde(rename_all = "snake_case")]
-#[sqlx(type_name = "task_status", rename_all = "snake_case")]
+#[sqlx(type_name = "TEXT", rename_all = "snake_case")]
 pub enum TaskStatus {
     Todo,
     InProgress,
@@ -13,7 +13,6 @@ pub enum TaskStatus {
 }
 #[derive(Debug, Serialize, Clone, sqlx::FromRow, Validate)]
 pub struct Task {
-    #[sqlx(try_from = "String")]
     pub(crate) id: Uuid,
     #[validate(length(min = 1, max = 200))]
     pub(crate) title: String,
@@ -63,8 +62,7 @@ pub struct UpdateTask {
     pub(crate) description: Option<Option<String>>,
     pub(crate) status: Option<TaskStatus>,
 }
-
-fn default_limit() -> u32 {
+fn default_limit() -> i64 {
     20
 }
 
@@ -73,9 +71,10 @@ pub struct TaskQuery {
     pub status: Option<TaskStatus>,
     #[serde(default = "default_limit")]
     #[validate(range(min = 1, max = 100, message = "limit must be 1-100"))]
-    pub limit: u32,
+    pub limit: i64,
     #[serde(default)]
-    pub offset: u32,
+    #[validate(range(min = 0, message = "offset must not be negative"))]
+    pub offset: i64,
 }
 
 #[cfg(test)]

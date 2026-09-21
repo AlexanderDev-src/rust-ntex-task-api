@@ -1,7 +1,7 @@
 CREATE TABLE tasks (
-    id          TEXT PRIMARY KEY NOT NULL,
-    title       TEXT NOT NULL,
+    id UUID PRIMARY KEY,
+    title TEXT NOT NULL,
     description TEXT,
-    status      TEXT NOT NULL DEFAULT 'todo',
-    created_at  TEXT NOT NULL
+    status TEXT NOT NULL DEFAULT 'todo',
+    created_at TIMESTAMPTZ NOT NULL
 );

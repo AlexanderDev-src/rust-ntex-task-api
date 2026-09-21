@@ -18,9 +18,9 @@ services:
       POSTGRES_PASSWORD: restapi
       POSTGRES_DB: tasks
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql/
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U restapi -d tasks"]
       interval: 5s
