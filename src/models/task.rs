@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use time::OffsetDateTime;
 use uuid::Uuid;
 use validator::Validate;
@@ -47,11 +47,20 @@ pub struct CreateTask {
     description: Option<String>,
 }
 
+fn deserialize_double_option<'de, T, D>(deserializer: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Deserialize::deserialize(deserializer).map(Some)
+}
+
 #[derive(Debug, Deserialize, Validate)]
 pub struct UpdateTask {
     #[validate(length(min = 1, max = 200, message = "title must be 1-200 chars"))]
     pub(crate) title: Option<String>,
-    pub(crate) description: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_double_option")]
+    pub(crate) description: Option<Option<String>>,
     pub(crate) status: Option<TaskStatus>,
 }
 
@@ -67,4 +76,21 @@ pub struct TaskQuery {
     pub limit: u32,
     #[serde(default)]
     pub offset: u32,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_update_task_description_deserialization() {
+        let absent: UpdateTask = serde_json::from_str("{}").unwrap();
+        assert_eq!(absent.description, None);
+
+        let explicit_null: UpdateTask = serde_json::from_str(r#"{"description": null}"#).unwrap();
+        assert_eq!(explicit_null.description, Some(None));
+
+        let with_value: UpdateTask = serde_json::from_str(r#"{"description": "hello"}"#).unwrap();
+        assert_eq!(with_value.description, Some(Some("hello".to_string())));
+    }
 }

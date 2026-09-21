@@ -1,6 +1,6 @@
 #!/usr/bin/env fish
 #
-# Phase 4-7 acceptance checks for the Task API.
+# Phase 4-8 acceptance checks for the Task API.
 #
 #   ./test.fish            run against http://localhost:8080
 #   ./test.fish 3000       run against a different port
@@ -223,6 +223,39 @@ check "?limit above the cap" 422 (code "$BASE/tasks?limit=9999")
 
 for stale in $seeded
     curl -s -o /dev/null -m 5 -X DELETE $BASE/tasks/$stale
+end
+
+echo
+echo "PATCH semantics — absent vs null (frontend)"
+
+# A PATCH body can mean three different things for description:
+#   key absent            -> leave it alone
+#   "description": null   -> clear it
+#   "description": "x"    -> set it to "x"
+# The frontend's edit dialog sends null when the field is emptied, so the
+# second case is how a user deletes a description. Option<String> cannot tell
+# the first two apart; it takes Option<Option<String>> to do that.
+set -l held (body -X POST $BASE/tasks -H 'content-type: application/json' -d '{"title":"patch probe","description":"keep me"}')
+set -l pid (echo $held | string match -rg '"id":"([^"]+)"')
+
+if test -n "$pid"
+    curl -s -o /dev/null -m 5 -X PATCH $BASE/tasks/$pid -H 'content-type: application/json' -d '{"status":"done"}'
+    contains_check "absent key leaves it alone" '"description":"keep me"' (body $BASE/tasks/$pid)
+
+    curl -s -o /dev/null -m 5 -X PATCH $BASE/tasks/$pid -H 'content-type: application/json' -d '{"description":"replaced"}'
+    contains_check "a string replaces it" '"description":"replaced"' (body $BASE/tasks/$pid)
+
+    curl -s -o /dev/null -m 5 -X PATCH $BASE/tasks/$pid -H 'content-type: application/json' -d '{"description":null}'
+    contains_check "null clears it" '"description":null' (body $BASE/tasks/$pid)
+
+    # Clearing description must not disturb the fields that were not sent.
+    contains_check "  title survived the clear" '"title":"patch probe"' (body $BASE/tasks/$pid)
+    contains_check "  status survived the clear" '"status":"done"' (body $BASE/tasks/$pid)
+
+    curl -s -o /dev/null -m 5 -X DELETE $BASE/tasks/$pid
+else
+    set -g failed (math $failed + 1)
+    printf '  \033[31mFAIL\033[0m  %-34s %s\n' "PATCH semantics" "could not create the probe task"
 end
 
 echo

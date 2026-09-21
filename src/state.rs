@@ -66,7 +66,9 @@ impl AppState {
         if let Some(title) = task.title {
             current.title = title;
         }
-        current.description = task.description.or(current.description);
+        if let Some(description) = task.description {
+            current.description = description;
+        }
         if let Some(status) = task.status {
             current.status = status;
         }
