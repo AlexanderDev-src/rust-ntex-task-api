@@ -7,7 +7,14 @@ import { TaskDialog } from "./components/TaskDialog.tsx";
 import { TaskList } from "./components/TaskList.tsx";
 import { Toast } from "./components/Toast.tsx";
 import { useTheme } from "./hooks/useTheme.ts";
-import { ApiError, createTask, deleteTask, listTasks, taskQueryString, updateTask } from "./lib/api.ts";
+import {
+  ApiError,
+  createTask,
+  deleteTask,
+  listTasks,
+  taskQueryString,
+  updateTask,
+} from "./lib/api.ts";
 import { dayKey, startOfMonth, taskDayKey } from "./lib/date.ts";
 import type { CreateTask, Task, TaskStatus, UpdateTask } from "./lib/types.ts";
 
@@ -39,7 +46,10 @@ function App() {
   const [formError, setFormError] = useState<string | null>(null);
 
   const [pendingDelete, setPendingDelete] = useState<Task | null>(null);
-  const [toast, setToast] = useState<{ code: string | null; message: string } | null>(null);
+  const [toast, setToast] = useState<{
+    code: string | null;
+    message: string;
+  } | null>(null);
 
   const query = { status: status ?? undefined, limit: PAGE_SIZE, offset };
 
@@ -96,7 +106,9 @@ function App() {
     setFormError(null);
     try {
       const updated = await updateTask(id, input);
-      setTasks((current) => current.map((task) => (task.id === id ? updated : task)));
+      setTasks((current) =>
+        current.map((task) => (task.id === id ? updated : task)),
+      );
       setDialogOpen(false);
     } catch (cause) {
       if (cause instanceof ApiError && cause.status === 422) {
@@ -114,7 +126,9 @@ function App() {
     const next = NEXT_STATUS[task.status];
     const previous = tasks;
     setTasks((current) =>
-      current.map((row) => (row.id === task.id ? { ...row, status: next } : row)),
+      current.map((row) =>
+        row.id === task.id ? { ...row, status: next } : row,
+      ),
     );
     try {
       await updateTask(task.id, { status: next });
@@ -160,7 +174,7 @@ function App() {
       />
 
       <div className="flex min-h-0 grow flex-col lg:flex-row">
-        <main className="flex grow flex-col gap-4 p-4 sm:p-6">
+        <main className="flex min-w-0 grow flex-col gap-4 p-4 sm:p-6">
           <FilterBar
             status={status}
             onChange={(next) => {
@@ -200,7 +214,9 @@ function App() {
             <button
               type="button"
               disabled={offset === 0}
-              onClick={() => setOffset((current) => Math.max(0, current - PAGE_SIZE))}
+              onClick={() =>
+                setOffset((current) => Math.max(0, current - PAGE_SIZE))
+              }
               aria-label="Previous page"
               className="inline-flex h-9 items-center rounded-lg border border-border px-3 text-sm text-text hover:bg-subtle disabled:opacity-40"
             >
@@ -246,7 +262,9 @@ function App() {
         open={pendingDelete !== null}
         title={pendingDelete ? `Delete “${pendingDelete.title}”?` : ""}
         body="This cannot be undone."
-        requestLine={pendingDelete ? `DELETE /tasks/${pendingDelete.id.slice(0, 8)}…` : ""}
+        requestLine={
+          pendingDelete ? `DELETE /tasks/${pendingDelete.id.slice(0, 8)}…` : ""
+        }
         onCancel={() => setPendingDelete(null)}
         onConfirm={() => void handleDelete()}
       />
