@@ -1,6 +1,6 @@
 # Task API — learning Rust by building a REST API
 
-A small Task/Todo REST API written in Rust with [ntex](https://ntex.rs) and SQLite.
+A small Task/Todo REST API written in Rust with [ntex](https://ntex.rs) and PostgreSQL.
 
 **This repository is a learning exercise, not a product.** The goal was never the API — it was
 learning Rust. The API is just the thing I built while doing it.
@@ -59,7 +59,7 @@ breaks a validation rule, `404` when the row is not there, `500` for anything th
 | Crate       | Why                                                             |
 | ----------- | --------------------------------------------------------------- |
 | `ntex`      | web framework (thread-per-core, actix-derived)                   |
-| `sqlx`      | async SQLite, compile-time-optional query checking, migrations   |
+| `sqlx`      | async PostgreSQL, compile-time-optional query checking, migrations |
 | `serde`     | JSON in and out                                                  |
 | `validator` | declarative validation rules on the request structs              |
 | `thiserror` | one error enum with the boilerplate generated                    |
@@ -84,14 +84,29 @@ Reading `docs.rs` type signatures and the ntex source directly ended up being fa
 
 ## Running it
 
+PostgreSQL runs in Docker; the API runs on the host.
+
 ```bash
 git clone git@github.com:AlexanderDev-src/rust-ntex-task-api.git
 cd rust-ntex-task-api
-printf '%s\n' 'DATABASE_URL=sqlite://tasks.db?mode=rwc' 'PORT=8080' > .env
+docker compose up -d db
+printf '%s\n' 'DATABASE_URL=postgres://restapi:restapi@127.0.0.1:5433/tasks' 'PORT=8080' > .env
 cargo run
 ```
 
-Migrations run automatically at startup and the SQLite file is created on first run.
+Migrations run automatically at startup. The database is published on host port **5433**, not the
+usual 5432, so it does not collide with another Postgres already on the machine. Its data lives in the
+`pgdata` named volume and survives `docker compose down`; only `docker compose down -v` deletes it.
+
+The `POSTGRES_USER` / `POSTGRES_PASSWORD` values in `docker-compose.yml` are read once, when the
+volume is first initialised. Changing them afterwards does nothing until the volume is recreated, so
+keep `.env` in step with whatever the volume was created with.
+
+To look at the data directly:
+
+```bash
+docker compose exec db psql -U restapi -d tasks -c 'select id, title, status from tasks;'
+```
 
 Configuration comes from the environment; `.env` is only a convenience for local work, and real
 environment variables take precedence over it:
@@ -120,8 +135,8 @@ curl -X POST localhost:8080/tasks \
 
 ## Tests
 
-`test.fish` is an acceptance script — 48 checks covering every endpoint, every error path, the
-validation rules, and the paging behaviour. Start the server first, then in another terminal:
+`test.fish` is an acceptance script — 54 checks covering every endpoint, every error path, the
+validation rules, the paging behaviour, and PATCH semantics. Start the server first, then in another terminal:
 
 ```bash
 ./test.fish          # or ./test.fish 4000 for a different port
@@ -131,7 +146,13 @@ It seeds its own tasks and deletes them afterwards, so it is safe to run repeate
 it asserts is relative to what it created — leftover rows do not break it. It exits non-zero if
 anything fails.
 
-Two of those checks are less obvious than the rest and were worth writing: one asserts that page 1
+There is also one Rust unit test, for the `UpdateTask` deserializer — it needs no server or database:
+
+```bash
+cargo test
+```
+
+Two of the acceptance checks are less obvious than the rest and were worth writing: one asserts that page 1
 and page 2 share no ids, and one asserts that the same request twice returns the same order. Both
 fail the moment `ORDER BY` goes missing, which is exactly the bug that is invisible when you only
 ever look at one page.
@@ -145,19 +166,21 @@ src/
 ├── config.rs          Config::from_env — the only place that reads the environment
 ├── error.rs           AppError + WebResponseError — every error becomes JSON here
 ├── extract.rs         ValidatedJson<T> and ValidatedQuery<T>, custom FromRequest extractors
-├── state.rs           AppState — owns the SqlitePool, all SQL lives here
+├── state.rs           AppState — owns the PgPool, all SQL lives here
 ├── handlers/tasks.rs  HTTP only: request in, AppState call, response out
 └── models/task.rs     Task, CreateTask, UpdateTask, TaskQuery, TaskStatus
 migrations/            versioned schema, applied on startup
-frontend/              React + TypeScript + Tailwind (in progress)
+frontend/              React + TypeScript + Tailwind
+docker-compose.yml     PostgreSQL (plus the frontend image)
 ```
 
 Dependencies point one way: `handlers` → `state` → `models`. Handlers contain no SQL, and models know
 nothing about HTTP.
 
 That layering paid off concretely. Phase 6 replaced an in-memory `Arc<Mutex<HashMap>>` with a real
-SQLite pool, and the five handlers changed by adding `.await` — nothing else. The same acceptance
-script verified both versions.
+SQLite pool, and the five handlers changed by adding `.await` — nothing else. The later move from
+SQLite to PostgreSQL touched `state.rs`, `main.rs`, the model derives and the migration, and again
+no handler. The same acceptance script verified every version.
 
 ## Learning path
 
@@ -175,14 +198,35 @@ Each phase was one commit and taught one thing.
 | 7     | query params, pagination  | `Query<T>`, `QueryBuilder`, why paging needs `ORDER BY`         |
 | 8     | config, graceful shutdown | env-driven config, splitting `main` from `run`, clean shutdown  |
 
-Deliberately out of scope: authentication, a test suite in Rust, Docker, tracing, OpenAPI. They are
+After the eight phases:
+
+| Step        | What it was actually for                                                        |
+| ----------- | ------------------------------------------------------------------------------- |
+| frontend    | React + TS client behind a Vite dev proxy; one `api.ts` owns every request       |
+| PATCH fix   | `Option<Option<String>>` so `null` clears a field and a missing key leaves it    |
+| PostgreSQL  | native `uuid` / `timestamptz`, `$1` placeholders, no unsigned integers           |
+
+### What the PostgreSQL move actually changed
+
+- **Types got real.** SQLite stored the UUID as `TEXT` and needed `.to_string()` on every bind plus
+  `#[sqlx(try_from = "String")]` on read — forgetting one silently matched zero rows. Postgres has a
+  `uuid` column type, so all of that went away.
+- **Placeholders.** `?` became `$1, $2, …`. `QueryBuilder::push_bind` numbers them itself.
+- **No unsigned integers.** `u32` does not encode for Postgres, so `limit` / `offset` became `i64`.
+  That removed the free rejection of negative numbers, so `offset` now needs an explicit
+  `range(min = 0)` — and `?limit=-1` is a `422` (parsed, then refused) instead of a `400`.
+- **`type_name` must match the schema.** `#[sqlx(type_name = "task_status")]` told sqlx the column
+  was a Postgres enum that the migration never created; every insert failed with a generic
+  `database error`. The column is `TEXT`, so the derive says `TEXT`.
+
+Deliberately out of scope: authentication, tracing, OpenAPI, and running the API itself in Docker. They are
 worth doing, but each is its own topic and would have blurred the phase it landed in.
 
 ## Status
 
-All eight phases are done and the 48-check acceptance script passes. Next up, one topic at a time:
-finishing the React frontend, then migrating from SQLite to PostgreSQL, then Docker — deferred until
-PostgreSQL makes `docker compose` actually worth having.
+All eight phases are done, the backend runs on PostgreSQL, and the 54-check acceptance script plus
+the Rust unit test pass. Next: a Dockerfile for the API so `docker compose up` brings up the whole
+stack — see the commented-out `api` service in `docker-compose.yml`.
 
-This is learning code. It has no auth, no rate limiting, and no Rust-level tests, and it is not
-hardened for anything. Do not run it in production.
+This is learning code. It has no auth and no rate limiting, the Rust test suite is a single unit test,
+and it is not hardened for anything. Do not run it in production.
