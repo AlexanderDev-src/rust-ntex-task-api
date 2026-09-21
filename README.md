@@ -230,3 +230,49 @@ stack — see the commented-out `api` service in `docker-compose.yml`.
 
 This is learning code. It has no auth and no rate limiting, the Rust test suite is a single unit test,
 and it is not hardened for anything. Do not run it in production.
+
+## Working with Claude
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Built%20with-Claude-D97757?logo=claude&logoColor=white" alt="Built with Claude">
+</p>
+
+The coach in "How this was built" was [Claude](https://claude.ai), running in Claude Code. Its job
+was to make me better at Rust, not to write the backend for me. This is what it actually did.
+
+**Planning and teaching**
+
+- Wrote the phase plan: nine phases from an empty `cargo new` to config and shutdown, each one
+  commit and one concept.
+- Explained each concept as the difference from Java, since that is what I already knew. Ownership
+  and borrowing got the long version.
+- Asked self-check questions at the end of each phase and marked my answers, including the parts I
+  got wrong.
+
+**Checking my work instead of trusting it**
+
+- After I wrote something, it compiled it, ran clippy, started the server, and hit it with curl —
+  then reported what happened, not what should have happened.
+- Tracked down bugs I could not see, such as the UUID bound as a BLOB, the unused `body` warning
+  that meant a PATCH handler never applied anything, the `min-h-0` that should have been `min-w-0`,
+  and the `type_name` that pointed at a Postgres enum that did not exist.
+- Owned up to its own mistakes, like the time it blamed my code for 500s that were really caused by
+  three stray server processes it had started itself.
+
+**Verifying before claiming**
+
+ntex has few examples online, so instead of answering from memory Claude built small throwaway
+projects to check each API before explaining it: how `FromRequest` looks in ntex 3, whether sqlx
+runs under ntex's runtime, how `Uuid` actually lands in SQLite, which `ntex-cors` version works with
+ntex 3, and whether Postgres accepts `u32`. Several of those checks overturned what it had said
+before.
+
+**Things it did write**
+
+- `test.fish`, the acceptance script, extended at each phase so I could debug on my own.
+- This README.
+- Git commits when I asked for them.
+- A small ownership playground at `src/bin/test.rs`, used to try out the RustOwl visualiser.
+
+The backend code under `src/`, the SQL, and the fixes are mine. Claude's part was making sure I
+understood why each line was there and catching it when it was wrong.
